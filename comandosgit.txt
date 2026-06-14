@@ -1,0 +1,42 @@
+# ── SETUP (solo una vez) ──────────────────────────────
+git config --global user.name "tu nombre"
+git config --global user.email "tu@email.com"
+
+# ── CLONAR UN REPO ────────────────────────────────────
+git clone https://github.com/usuario/repo.git
+
+# ── VER EN QUE RAMA ESTAS ────────────────────────────
+git branch
+
+# ── CAMBIAR DE RAMA ──────────────────────────────────
+git checkout nombre-rama
+
+# ── CREAR RAMA Y CAMBIARTE A ELLA ────────────────────
+git checkout -b nombre-rama
+
+# ── VER QUE ARCHIVOS CAMBIASTE ───────────────────────
+git status
+
+# ── AGREGAR CAMBIOS PARA EL COMMIT ───────────────────
+git add main.py          # un archivo especifico
+git add .                # todos los archivos cambiados
+
+# ── HACER COMMIT ─────────────────────────────────────
+git commit -m "descripcion de lo que hiciste"
+
+# ── SUBIR TU RAMA A GITHUB ───────────────────────────
+git push origin nombre-rama
+
+# ── BAJAR CAMBIOS QUE OTROS SUBIERON ─────────────────
+git pull origin nombre-rama
+
+# ── MEZCLAR OTRA RAMA EN LA TUYA ─────────────────────
+git checkout tu-rama
+git merge otra-rama      # trae los cambios de otra-rama a tu-rama
+
+# ── FLUJO DIARIO TIPICO ───────────────────────────────
+git pull origin develop          # actualizar antes de trabajar
+# ... trabajas ...
+git add .
+git commit -m "lo que hice"
+git push origin tu-rama          # subir tu trabajo
