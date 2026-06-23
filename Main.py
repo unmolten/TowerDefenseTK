@@ -19,7 +19,7 @@ def cargar_jugadores():
     # El archivo se ve asi por dentro:
     # {
     #   "gabo": {"contrasena": "1234", "victorias_defensor": 0, "victorias_atacante": 0},
-    #   "mathi": {"contrasena": "abcd", "victorias_defensor": 2, "victorias_atacante": 1}
+    #   "mathi": {"contrasena": "1234", "victorias_defensor": 2, "victorias_atacante": 1}
     # }
 
 def guardar_jugadores(jugadores):
@@ -61,7 +61,7 @@ estado = {
     "musica_pausada": False,
 }
 
-CICLO_TEXTURAS = ["predeterminado", "colores calidos", "colores frios"]
+CICLO_TEXTURAS = ["predeterminado", "animado", "realista"]
 
 
 # ── VENTANA DE LOGIN ──────────────────────────────────────────────────────────
@@ -156,15 +156,18 @@ def abrir_login(turno):
 # Solo se abre si el login fue exitoso.
 
 def abrir_menu_principal():
-    ventana_principal = tk.Tk()
-    ventana_principal.title("Menú Principal")
+    ventana_principal = tk.Tk()  
+    ventana_principal.title("Menú Principal")  
     ventana_principal.geometry("800x500")
     ventana_principal.resizable(False, False)
 
-    tk.Label(ventana_principal, text="").pack(pady=80)
+    #Se carga el archivo de imagen de fondo
+    imagen_fondo = tk.PhotoImage(file="Fondo_principal.png")
+    ventana_principal.imagen_fondo = imagen_fondo 
 
-    frame_botones = tk.Frame(ventana_principal)
-    frame_botones.pack()
+    #Se crea la capa del fondo estirada en toda la ventana
+    lbl_fondo = tk.Label(ventana_principal, image=imagen_fondo)
+    lbl_fondo.place(x=0, y=0, relwidth=1, relheight=1)
 
     def ir_a_jugar():
         ventana_principal.destroy()
@@ -173,9 +176,9 @@ def abrir_menu_principal():
     def ir_a_configuracion():
         ventana_principal.destroy()
         abrir_configuracion()
-
-    tk.Button(frame_botones, text="Jugar", width=18, height=3, command=ir_a_jugar).grid(row=0, column=0, padx=60)
-    tk.Button(frame_botones, text="Configuración", width=18, height=3, command=ir_a_configuracion).grid(row=0, column=1, padx=60)
+    
+    tk.Button(ventana_principal, text="JUGAR", width=16, height=2, command=ir_a_jugar,font=("Arial Black", 14), bg="#2B2B2B", fg="#A3E4D7", bd=5, relief="raised", activebackground="#404040", activeforeground="#A3E4D7").place(relx=0.35, rely=0.6, anchor="center")      
+    tk.Button(ventana_principal, text="CONFIGURACIÓN", width=16, height=2, command=ir_a_configuracion,font=("Arial Black", 14), bg="#2B2B2B", fg="#A3E4D7", bd=5, relief="raised", activebackground="#404040", activeforeground="#A3E4D7").place(relx=0.65, rely=0.6, anchor="center")
 
     ventana_principal.mainloop()
 
@@ -236,14 +239,18 @@ def abrir_configuracion():
         abrir_menu_principal()
 
     tk.Button(frame_fila1, text="Volver al Menú", width=18, height=2, command=volver_menu).grid(row=0, column=0, padx=40)
-    tk.Button(frame_fila1, text="Cerrar Juego", width=18, height=2, command=ventana_config.destroy).grid(row=0, column=1, padx=40)
+    def ir_a_ranking():
+        ventana_config.destroy()
+        abrir_ranking()
 
-    tk.Label(ventana_config, text="Música", font=("Arial", 11)).pack(pady=(20, 5))
+    tk.Button(frame_fila1, text="VOLVER AL MENÚ", width=18, height=2, command=volver_menu,font=("Arial Black", 10), bg="#D1D5C4", fg="#2B2B2B", bd=4, relief="groove", activebackground="#C2C6B5", activeforeground="#2B2B2B").grid(row=0, column=0, padx=15)       
+    tk.Button(frame_fila1, text="REGISTRO DE PUNTOS", width=18, height=2, command=ir_a_ranking,font=("Arial Black", 10), bg="#D1D5C4", fg="#2B2B2B", bd=4, relief="groove", activebackground="#C2C6B5", activeforeground="#2B2B2B").grid(row=0, column=1, padx=15) 
+    tk.Button(frame_fila1, text="CERRAR JUEGO", width=18, height=2, command=ventana_config.destroy,font=("Arial Black", 10), bg="#D1D5C4", fg="#2B2B2B", bd=4, relief="groove", activebackground="#C2C6B5", activeforeground="#2B2B2B").grid(row=0, column=2, padx=15)
 
     frame_fila2 = tk.Frame(ventana_config)
     frame_fila2.pack(pady=5)
 
-    btn_musica = tk.Button(frame_fila2, text="Pausar Música", width=18, height=2)
+    btn_musica = tk.Button(frame_fila2, text="Pausar Música", width=18, height=2,font=("Arial Black", 10), bg="#D1D5C4", fg="#2B2B2B", bd=4, relief="groove")
 
     def toggle_musica():
         estado["musica_pausada"] = not estado["musica_pausada"]
@@ -286,12 +293,27 @@ def abrir_configuracion():
         lbl_textura.config(text=f"Textura actual: {estado['textura']}")
         btn_textura.config(text=estado["textura"].capitalize())
 
-    btn_textura = tk.Button(frame_fila3, text=estado["textura"].capitalize(),
-                            width=18, height=2, command=ciclar_textura)
+    btn_textura = tk.Button(frame_fila3, text=estado["textura"].capitalize(),width=18, height=2, command=ciclar_textura,font=("Arial Black", 10), bg="#D1D5C4", fg="#2B2B2B", bd=4, relief="groove")
     btn_textura.grid(row=0, column=1, padx=20)
 
     ventana_config.mainloop()
 
+# ── VENTANA DE RANKING / REGISTRO DE PUNTOS ───────────────────────────────────
+def abrir_ranking():
+    ventana_ranking = tk.Tk()
+    ventana_ranking.title("Registro de Puntos")
+    ventana_ranking.geometry("800x500")
+    ventana_ranking.resizable(False, False)
+
+    tk.Label(ventana_ranking, text="Top Jugadores", font=("Arial", 16, "bold")).pack(pady=20)
+
+    def volver_config():
+        ventana_ranking.destroy()
+        abrir_configuracion()
+
+    tk.Button(ventana_ranking, text="Volver a Configuración", width=22, height=2, command=volver_config).pack(pady=20)
+
+    ventana_ranking.mainloop()
 
 # ── PUNTO DE ENTRADA ──────────────────────────────────────────────────────────
 # El programa siempre arranca en el login, no en el menu principal.
