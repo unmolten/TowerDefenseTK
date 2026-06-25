@@ -1,6 +1,9 @@
 import tkinter as tk
 import json
 import os
+import pygame
+
+
 
 # ── MAPA ──────────────────────────────────────────────────────────────────────
 FILAS     = 10
@@ -39,8 +42,7 @@ class Muro:
         return Muro()
 
 
-# ── TIPOS DISPONIBLES (sin subclases) ─────────────────────────────────────────
-# Estos son los templates. Cuando el jugador coloca uno, se clona con copy.copy()
+# ── TIPOS DISPONIBLES ─────────────────────────────────────────
 
 TIPOS_TORRE = [
     Torres("Básica", vida=60,  atk=10, costo=50,  alcance=6, vel_especial=5, color="#3498db"),
@@ -99,7 +101,7 @@ TIPOS_ENEMIGO = [
 # ── DEFENSOR ──────────────────────────────────────────────────────────────────
 
 class Defensor:
-    DINERO_INICIAL = 600
+    DINERO_INICIAL = 400
 
     def __init__(self, jugador):
         self.jugador = jugador
@@ -192,6 +194,7 @@ def registrar_victoria(username, rol):
             
         guardar_jugadores(jugadores)
 
+# ───────────────────────── Logica de rondas ─────────────────────────
 def procesar_fin_ronda(ventana_bat, ganador):
     ventana_bat.destroy()
     
@@ -200,16 +203,69 @@ def procesar_fin_ronda(ventana_bat, ganador):
     else:
         estado_partida["victorias_defensor"] += 1
         
-    # Verificar si alguien ganó la partida completa (3 rondas)
+    # Verificar si alguien ganó la partida
     if estado_partida["victorias_atacante"] >= 3:
         registrar_victoria(jugadores_activos[1]["username"], "atacante")
-        abrir_menu_principal()
+        abrir_estadisticas("atacante", jugadores_activos[1]["username"])
     elif estado_partida["victorias_defensor"] >= 3:
         registrar_victoria(jugadores_activos[0]["username"], "defensor")
-        abrir_menu_principal()
+        abrir_estadisticas("defensor", jugadores_activos[0]["username"])
     else:
         estado_partida["ronda_actual"] += 1
-        abrir_juego() # Iniciar nueva ronda[cite: 2]
+        jugadores_activos[0]["dinero_batalla"] = jugadores_activos[0].get("dinero_batalla", Defensor.DINERO_INICIAL) + 200
+        jugadores_activos[1]["dinero_batalla"] = jugadores_activos[1].get("dinero_batalla", Atacante.DINERO_INICIAL) + 200
+        abrir_juego()
+
+def abrir_estadisticas(ganador_rol, nombre_ganador):
+    ventana_est = tk.Tk()
+    ventana_est.title("Estadísticas Finales")
+    ventana_est.geometry("500x400")
+    ventana_est.config(bg="#1a1a2e")
+
+    tk.Label(ventana_est, text="¡FIN DE LA PARTIDA!", font=("Arial", 20, "bold"), bg="#1a1a2e", fg="#f1c40f").pack(pady=20)
+    
+    color_ganador = "#2ecc71" if ganador_rol == "defensor" else "#e74c3c"
+    tk.Label(ventana_est, text=f"Ganador: {nombre_ganador} ({ganador_rol.capitalize()})", 
+             font=("Arial", 16, "bold"), bg="#1a1a2e", fg=color_ganador).pack(pady=10)
+
+    # Mostrar rondas ganadas por cada uno
+    frame_stats = tk.Frame(ventana_est, bg="#1a1a2e")
+    frame_stats.pack(pady=20)
+    
+    tk.Label(frame_stats, text=f"Victorias Defensor ({jugadores_activos[0]['username']}): {estado_partida['victorias_defensor']}", 
+             font=("Arial", 12), bg="#1a1a2e", fg="white").pack(pady=5)
+    tk.Label(frame_stats, text=f"Victorias Atacante ({jugadores_activos[1]['username']}): {estado_partida['victorias_atacante']}", 
+             font=("Arial", 12), bg="#1a1a2e", fg="white").pack(pady=5)
+
+    def cerrar_y_volver():
+        ventana_est.destroy()
+        abrir_menu_principal()
+
+    tk.Button(ventana_est, text="Continuar al Menú", width=20, height=2, 
+              bg="#3498db", fg="white", font=("Arial", 10, "bold"), command=cerrar_y_volver).pack(pady=30)
+
+    ventana_est.mainloop()
+
+# ─ CONFIGURACIÓN DE AUDIO ─────────────────────────
+pygame.mixer.init()
+
+# Diccionario para cargar los sonidos de forma segura
+sonidos = {}
+archivos_audio = {
+    "ataque_torre": "ataque_torre.wav",
+    "dano_enemigo": "dano_enemigo.wav",
+    "muerte_tropa": "muerte_tropa.wav"
+}
+
+for clave, ruta in archivos_audio.items():
+    try:
+        sonidos[clave] = pygame.mixer.Sound(ruta)
+    except:
+        sonidos[clave] = None  # Si el archivo no existe, lo ignora sin dar error
+
+def reproducir_sonido(clave):
+    if sonidos.get(clave) and not estado.get("musica_pausada", False):
+        sonidos[clave].play()
 
 # ── ESTADOS GLOBALES ──────────────────────────────────────────────────────────
 estado = {
@@ -270,8 +326,11 @@ def abrir_login(turno):
     ventana_login.title(f"Login - Jugador {turno + 1}")
     ventana_login.geometry("800x500")
     ventana_login.resizable(False, False)
-
-    tk.Label(ventana_login, text=f"Jugador {turno + 1}", font=("Arial", 18, "bold")).pack(pady=40)
+    
+    if turno == 0:
+        tk.Label(ventana_login, text="Defensor", font=("Arial", 18, "bold")).pack(pady=40)
+    else:
+        tk.Label(ventana_login, text="Atacante", font=("Arial", 18, "bold")).pack(pady=40)
 
     tk.Label(ventana_login, text="Usuario").pack()
     entry_usuario = tk.Entry(ventana_login, width=30)
@@ -578,18 +637,41 @@ def abrir_configuracion():
 # ── VENTANA DE RANKING ────────────────────────────────────────────────────────
 def abrir_ranking():
     ventana_ranking = tk.Tk()
-    ventana_ranking.title("Registro de Puntos")
+    ventana_ranking.title("Top Jugadores")
     ventana_ranking.geometry("800x500")
-    ventana_ranking.resizable(False, False)
+    ventana_ranking.config(bg="#1a1a2e")
 
-    tk.Label(ventana_ranking, text="Top Jugadores", font=("Arial", 16, "bold")).pack(pady=20)
+    tk.Label(ventana_ranking, text="🏆 Top 5 Jugadores 🏆", font=("Arial", 20, "bold"), bg="#1a1a2e", fg="#f1c40f").pack(pady=10)
+
+    frame_listas = tk.Frame(ventana_ranking, bg="#1a1a2e")
+    frame_listas.pack(pady=10)
+    
+    # Contenedores para las dos columnas
+    frame_defensores = tk.Frame(frame_listas, bg="#1a1a2e")
+    frame_defensores.grid(row=0, column=0, padx=30)
+    tk.Label(frame_defensores, text="🛡️ Mejores Defensores", font=("Arial", 14, "bold"), bg="#1a1a2e", fg="#2ecc71").pack()
+    
+    frame_atacantes = tk.Frame(frame_listas, bg="#1a1a2e")
+    frame_atacantes.grid(row=0, column=1, padx=30)
+    tk.Label(frame_atacantes, text="⚔️ Mejores Atacantes", font=("Arial", 14, "bold"), bg="#1a1a2e", fg="#e74c3c").pack()
+
+    jugadores = cargar_jugadores()
+    
+    # Ordenar y tomar solo los primeros 5
+    top_defensores = sorted(jugadores.items(), key=lambda x: x[1].get("victorias_defensor", 0), reverse=True)[:5]
+    top_atacantes = sorted(jugadores.items(), key=lambda x: x[1].get("victorias_atacante", 0), reverse=True)[:5]
+
+    for i, (user, datos) in enumerate(top_defensores, 1):
+        tk.Label(frame_defensores, text=f"{i}. {user} - {datos.get('victorias_defensor', 0)} wins", font=("Arial", 11), bg="#1a1a2e", fg="white").pack(pady=2)
+        
+    for i, (user, datos) in enumerate(top_atacantes, 1):
+        tk.Label(frame_atacantes, text=f"{i}. {user} - {datos.get('victorias_atacante', 0)} wins", font=("Arial", 11), bg="#1a1a2e", fg="white").pack(pady=2)
 
     def volver_config():
         ventana_ranking.destroy()
         abrir_configuracion()
 
-    tk.Button(ventana_ranking, text="Volver a Configuración", width=22, height=2, command=volver_config).pack(pady=20)
-
+    tk.Button(ventana_ranking, text="Volver a Configuración", width=22, height=2, bg="#3498db", fg="white", font=("Arial", 10, "bold"), command=volver_config).pack(pady=30)
     ventana_ranking.mainloop()
 
 def abrir_fase_ataque(mapa_defensor):
@@ -737,7 +819,6 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
                 batalla[f][COLS_DEF + c] = mapa_atacante[f][c]
 
     juego_activo = {"corriendo": True}
-    dinero_atacante = {"valor": jugadores_activos[1].get("dinero_batalla", 0) if jugadores_activos[1] else 0}
 
     ventana_bat = tk.Tk()
     ventana_bat.title("Campo de Batalla")
@@ -746,8 +827,17 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
     canvas = tk.Canvas(ventana_bat, width=ancho_canvas, height=alto_canvas)
     canvas.pack()
 
-    panel = tk.Frame(ventana_bat, pady=8, bg="#1a1a2e")
-    panel.pack(fill="x")
+    panel = tk.Frame(ventana_bat, bg="#1a1a2e")
+    panel.pack(side=tk.TOP, fill=tk.X, pady=10)
+
+    dinero_atacante = {"valor": jugadores_activos[1].get("dinero_batalla", 0) if jugadores_activos[1] else 0}
+    dinero_defensor = {"valor": jugadores_activos[0].get("dinero_batalla", 0) if jugadores_activos[0] else 0}
+
+    lbl_dinero_atk = tk.Label(panel, text=f"⚔️ Atacante: ${dinero_atacante['valor']}", font=("Arial", 10, "bold"), bg="#1a1a2e", fg="#e74c3c")
+    lbl_dinero_atk.grid(row=1, column=3, padx=10)
+
+    lbl_dinero_def = tk.Label(panel, text=f"🛡️ Defensor: ${dinero_defensor['valor']}", font=("Arial", 10, "bold"), bg="#1a1a2e", fg="#2ecc71")
+    lbl_dinero_def.grid(row=1, column=4, padx=10)
 
     lbl_estado = tk.Label(panel, text="⚔️  Batalla en curso...", font=("Arial", 12, "bold"),
                           bg="#1a1a2e", fg="white")
@@ -756,15 +846,6 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
     lbl_dinero_bat = tk.Label(panel, text="💰 Atacante: $0", font=("Arial", 10),
                                bg="#1a1a2e", fg="#f1c40f")
     lbl_dinero_bat.grid(row=1, column=0, padx=20)
-
-    def volver_menu():
-        juego_activo["corriendo"] = False
-        ventana_bat.destroy()
-        abrir_menu_principal()
-
-    tk.Button(panel, text="Volver al Menú", width=16, height=1,
-              bg="#c0392b", fg="white", font=("Arial", 9, "bold"),
-              command=volver_menu).grid(row=1, column=2, padx=20)
 
     def dibujar():
         canvas.delete("all")
@@ -797,15 +878,28 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
                         canvas.create_rectangle(x0+2, y1-7, x0+2+int((TAM_CELDA-4)*pct), y1-2,
                                                 fill="#2ecc71", outline="")
 
+    def dibujar_rayo(f_origen, c_origen, f_destino, c_destino, color):
+        x1 = c_origen * TAM_CELDA + 25
+        y1 = f_origen * TAM_CELDA + 25
+        x2 = c_destino * TAM_CELDA + 25
+        y2 = f_destino * TAM_CELDA + 25
+        
+        # Dibujamos y forzamos actualización
+        rayo = canvas.create_line(x1, y1, x2, y2, fill=color, width=4, arrow=tk.LAST)
+        canvas.update() 
+        
+        # Aumentamos a 300ms para que el ojo humano alcance a ver el disparo
+        ventana_bat.after(500, lambda: canvas.delete(rayo))
+
     def tick():
         if not juego_activo["corriendo"]:
             return
 
         gano_atacante = False
-        gano_defensor = True  # asume que gana defensor salvo que queden enemigos
+        gano_defensor = True
 
+        # --- FASE 1: MOVIMIENTO Y ATAQUE DE ENEMIGOS ---
         for f in range(FILAS_BAT):
-            # recorrer de izquierda a derecha para mover enemigos sin pisarse
             for c in range(COLS_BAT):
                 celda = batalla[f][c]
                 if not isinstance(celda, Enemigo):
@@ -814,14 +908,19 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
                     batalla[f][c] = None
                     continue
 
-                gano_defensor = False  # hay al menos un enemigo vivo
+                gano_defensor = False
 
-                # habilidad por contador
+                # Habilidad de enemigo
                 celda.contador_hab += 1
                 atk_efectivo = celda.atk
                 if celda.contador_hab >= celda.turnos_habilidad:
                     atk_efectivo = celda.activar_habilidad()
                     celda.contador_hab = 0
+
+                # Congelamiento (Habilidad de Torre Mágica)
+                if getattr(celda, "congelado", False):
+                    celda.congelado = False
+                    continue  # Pierde el turno de movimiento/ataque
 
                 pasos = celda.velocidad + celda.vel_boost
                 celda.vel_boost = 0
@@ -829,7 +928,6 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
                 for _ in range(pasos):
                     dest = c - 1
                     if dest < 0:
-                        # llegó a la base — atacante gana
                         batalla[f][c] = None
                         gano_atacante = True
                         break
@@ -842,17 +940,22 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
                         break
 
                     elif objetivo is None:
-                        # moverse
                         batalla[f][dest] = celda
-                        batalla[f][c]    = None
+                        batalla[f][c] = None
                         c = dest
 
-                    elif isinstance(objetivo, Torres) or isinstance(objetivo, Muro):
-                        # atacar torre/muro
+                    elif isinstance(objetivo, (Torres, Muro)):
+                        # Atacar Defensa
+                        reproducir_sonido("ataque_torre")
                         objetivo.vida -= atk_efectivo
+                        
+                        # Economía Atacante: gana dinero por hacer daño
+                        dinero_atacante["valor"] += 10
+                        lbl_dinero_atk.config(text=f"⚔️ Atacante: ${dinero_atacante['valor']}")
+
                         if objetivo.vida <= 0:
                             dinero_atacante["valor"] += objetivo.costo // 2
-                            lbl_dinero_bat.config(text=f"💰 Atacante: ${dinero_atacante['valor']}")
+                            lbl_dinero_atk.config(text=f"⚔️ Atacante: ${dinero_atacante['valor']}")
                             batalla[f][dest] = None
                         break
 
@@ -861,7 +964,7 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
             if gano_atacante:
                 break
 
-       # torres atacan a enemigos en su alcance (ahora en TODAS las direcciones)
+        # --- FASE 2: ATAQUE DE TORRES ---
         for f in range(FILAS_BAT):
             for c in range(COLS_BAT):
                 torre = batalla[f][c]
@@ -869,48 +972,89 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
                     continue
                     
                 torre.contador_especial += 1
-                atk_torre = torre.atk
+                habilidad_activada = False
+
                 if torre.contador_especial >= torre.vel_especial:
-                    # Aquí es donde pondrías la lógica de habilidades especiales
+                    habilidad_activada = True
                     torre.contador_especial = 0
 
-                # NUEVA LÓGICA DE BÚSQUEDA: Arriba, abajo, izquierda (atrás) y derecha
+                # Habilidad Mágica: Curación en área
+                if torre.nombre == "Mágica" and habilidad_activada:
+                    for df in range(-torre.alcance, torre.alcance + 1):
+                        for dc in range(-torre.alcance, torre.alcance + 1):
+                            vf, vc = f + df, c + dc
+                            if 0 <= vf < FILAS_BAT and 0 <= vc < COLS_BAT:
+                                aliado = batalla[vf][vc]
+                                if isinstance(aliado, (Torres, Muro)):
+                                    aliado.vida += 20  # Cura 20 puntos
+                                    dibujar_rayo(f, c, vf, vc, "green")  # Rayo verde curativo
+                    continue  # Si curó, ya usó su turno y no ataca
+
                 enemigo_atacado = False
+                
+                # Búsqueda de objetivos en rango
                 for df in range(-torre.alcance, torre.alcance + 1):
                     for dc in range(-torre.alcance, torre.alcance + 1):
-                        
-                        # Calcula el rango real de la torre
                         if abs(df) + abs(dc) <= torre.alcance:
                             objetivo_f = f + df
                             objetivo_c = c + dc
                             
-                            # Verifica que no se salga del mapa
                             if 0 <= objetivo_f < FILAS_BAT and 0 <= objetivo_c < COLS_BAT:
                                 objetivo = batalla[objetivo_f][objetivo_c]
                                 
                                 if isinstance(objetivo, Enemigo):
-                                    objetivo.recibir_danio(atk_torre)
+                                    reproducir_sonido("dano_enemigo")
                                     
-                                    if not objetivo.esta_vivo():
-                                        dinero_atacante["valor"] += objetivo.costo // 2
-                                        lbl_dinero_bat.config(text=f"💰 Atacante: ${dinero_atacante['valor']}")
-                                        batalla[objetivo_f][objetivo_c] = None
+                                    # Habilidad Básica: Disparo Doble
+                                    if torre.nombre == "Básica" and habilidad_activada:
+                                        objetivo.recibir_danio(torre.atk * 2)
+                                        dibujar_rayo(f, c, objetivo_f, objetivo_c, "blue") # Rayo azul doble daño
+                                    else:
+                                        objetivo.recibir_danio(torre.atk)
+                                        dibujar_rayo(f, c, objetivo_f, objetivo_c, "yellow") # Rayo normal
                                         
+                                    # Habilidad Pesada: Daño Explosivo (Área)
+                                    if torre.nombre == "Pesada" and habilidad_activada:
+                                        for ef in [-1, 0, 1]:
+                                            for ec in [-1, 0, 1]:
+                                                af, ac = objetivo_f + ef, objetivo_c + ec
+                                                if 0 <= af < FILAS_BAT and 0 <= ac < COLS_BAT:
+                                                    adyacente = batalla[af][ac]
+                                                    if isinstance(adyacente, Enemigo) and adyacente != objetivo:
+                                                        adyacente.recibir_danio(torre.atk)
+                                                        dibujar_rayo(objetivo_f, objetivo_c, af, ac, "red") # Explosión roja
+                                    
                                     enemigo_atacado = True
                                     break 
                     if enemigo_atacado:
                         break
 
+        # Limpieza general de enemigos muertos (necesario por el daño en área)
+        for f_b in range(FILAS_BAT):
+            for c_b in range(COLS_BAT):
+                entidad = batalla[f_b][c_b]
+                if isinstance(entidad, Enemigo) and not entidad.esta_vivo():
+                    reproducir_sonido("muerte_tropa")
+                    dinero_defensor["valor"] += entidad.costo
+                    lbl_dinero_def.config(text=f"🛡️ Defensor: ${dinero_defensor['valor']}")
+                    batalla[f_b][c_b] = None
+
         dibujar()
 
         if gano_atacante:
             juego_activo["corriendo"] = False
-            lbl_estado.config(text="💀 ¡El atacante ha ganado!", fg="#e74c3c")
+            lbl_estado.config(text="💀 ¡El atacante ha ganado esta ronda!", fg="#e74c3c")
+            jugadores_activos[1]["dinero_batalla"] = dinero_atacante["valor"]
+            jugadores_activos[0]["dinero_batalla"] = dinero_defensor["valor"]
+            ventana_bat.after(2500, lambda: procesar_fin_ronda(ventana_bat, "atacante"))
             return
 
         if gano_defensor:
             juego_activo["corriendo"] = False
-            lbl_estado.config(text="🏆 ¡El defensor ha ganado!", fg="#2ecc71")
+            lbl_estado.config(text="🏆 ¡El defensor ha ganado esta ronda!", fg="#2ecc71")
+            jugadores_activos[1]["dinero_batalla"] = dinero_atacante["valor"]
+            jugadores_activos[0]["dinero_batalla"] = dinero_defensor["valor"]
+            ventana_bat.after(2500, lambda: procesar_fin_ronda(ventana_bat, "defensor"))
             return
 
         ventana_bat.after(600, tick)
