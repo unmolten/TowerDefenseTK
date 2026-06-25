@@ -20,6 +20,7 @@ class Torres:
     def __init__(self, nombre, vida, atk, costo, alcance, vel_especial, color):
         self.nombre        = nombre
         self.vida          = vida
+        self.vida_max      = vida
         self.atk           = atk
         self.costo         = costo
         self.alcance       = alcance
@@ -34,7 +35,8 @@ class Torres:
 class Muro:
     def __init__(self):
         self.nombre = "Muro"
-        self.vida   = 100
+        self.vida   = 60
+        self.vida_max = 60
         self.costo  = 30
         self.color  = "#7f8c8d"
 
@@ -105,7 +107,7 @@ class Defensor:
 
     def __init__(self, jugador):
         self.jugador = jugador
-        self.dinero  = self.DINERO_INICIAL
+        self.dinero  = jugador.get("dinero_batalla", self.DINERO_INICIAL)
 
     def colocar(self, mapa, tipo, fila, col):
         if mapa[fila][col] is not None:
@@ -121,7 +123,7 @@ class Defensor:
         celda = mapa[fila][col]
         if celda is None or celda == "BASE":
             return False, "No hay nada que borrar"
-        self.dinero    += celda.costo   # reembolso completo
+        self.dinero    += celda.costo   // 2# reembolso de la mitad para balancear
         mapa[fila][col] = None
         return True, celda
 
@@ -130,7 +132,7 @@ class Atacante:
 
     def __init__(self, jugador):
         self.jugador = jugador
-        self.dinero  = self.DINERO_INICIAL
+        self.dinero  = jugador.get("dinero_batalla", self.DINERO_INICIAL)
 
     def colocar(self, mapa, tipo, fila, col):
         if mapa[fila][col] is not None:
@@ -195,7 +197,7 @@ def registrar_victoria(username, rol):
         guardar_jugadores(jugadores)
 
 # ───────────────────────── Logica de rondas ─────────────────────────
-def procesar_fin_ronda(ventana_bat, ganador):
+def procesar_fin_ronda(ventana_bat, ganador, mapa_final):
     ventana_bat.destroy()
     
     if ganador == "atacante":
@@ -203,7 +205,6 @@ def procesar_fin_ronda(ventana_bat, ganador):
     else:
         estado_partida["victorias_defensor"] += 1
         
-    # Verificar si alguien ganó la partida
     if estado_partida["victorias_atacante"] >= 3:
         registrar_victoria(jugadores_activos[1]["username"], "atacante")
         abrir_estadisticas("atacante", jugadores_activos[1]["username"])
@@ -212,9 +213,10 @@ def procesar_fin_ronda(ventana_bat, ganador):
         abrir_estadisticas("defensor", jugadores_activos[0]["username"])
     else:
         estado_partida["ronda_actual"] += 1
-        jugadores_activos[0]["dinero_batalla"] = jugadores_activos[0].get("dinero_batalla", Defensor.DINERO_INICIAL) + 200
-        jugadores_activos[1]["dinero_batalla"] = jugadores_activos[1].get("dinero_batalla", Atacante.DINERO_INICIAL) + 200
-        abrir_juego()
+        # Se añade el bono de 200 al dinero actual
+        jugadores_activos[0]["dinero_batalla"] = jugadores_activos[0].get("dinero_batalla", 0) + 200
+        jugadores_activos[1]["dinero_batalla"] = jugadores_activos[1].get("dinero_batalla", 0) + 200
+        abrir_juego(mapa_final) # Pasamos el mapa
 
 def abrir_estadisticas(ganador_rol, nombre_ganador):
     ventana_est = tk.Tk()
@@ -282,12 +284,34 @@ estado_partida = {
 CICLO_TEXTURAS    = ["predeterminado", "animado", "realista"]
 jugadores_activos = [None, None]
 
-# ── FACCIONES ─────────────────────────────────────────────────────────────────
+# ── FACCIONES Y TEXTURAS ──────────────────────────────────────────────────────
 FACCIONES = {
-    "Medieval": {"torre_basica": "#8B4513", "muro": "#696969", "base": "#A0522D"},
-    "Futurista": {"torre_basica": "#00FFFF", "muro": "#C0C0C0", "base": "#1E90FF"},
-    "Naturaleza": {"torre_basica": "#228B22", "muro": "#8FBC8F", "base": "#32CD32"}
+    "Normal": {
+        "Básica": "norm_t_basica.png", "Pesada": "norm_t_pesada.png", "Mágica": "norm_t_magica.png",
+        "Soldado": "zombie_normal_p.png", "Tanque": "zombie_tanque_p.png", "Rapido": "zombie_rapido_p.png",
+        "Muro": "norm_muro.png", "BASE": "norm_base.png"
+    },
+    "Animado": {
+        "Básica": "anim_t_basica.png", "Pesada": "anim_t_pesada.png", "Mágica": "anim_t_magica.png",
+        "Soldado": "zombie_normal_a.png", "Tanque": "zombie_tanque_a.png", "Rapido": "zombie_rapido_a.png",
+        "Muro": "anim_muro.png", "BASE": "anim_base.png"
+    },
+    "Toxico": {
+        "Básica": "tox_t_basica.png", "Pesada": "tox_t_pesada.png", "Mágica": "tox_t_magica.png",
+        "Soldado": "zombie_normal_t.png", "Tanque": "zombie_tanque_t.png", "Rapido": "zombie_rapido_t.png",
+        "Muro": "tox_muro.png", "BASE": "tox_base.png"
+    }
 }
+
+cache_texturas = {}
+
+def obtener_textura(nombre_archivo):
+    if nombre_archivo not in cache_texturas:
+        try:
+            cache_texturas[nombre_archivo] = tk.PhotoImage(file=nombre_archivo)
+        except:
+            cache_texturas[nombre_archivo] = None
+    return cache_texturas[nombre_archivo]
 
 def procesar_eleccion_faccion(faccion_elegida, turno, ventana_actual):
     jugadores_activos[turno]["faccion"] = faccion_elegida
@@ -384,6 +408,11 @@ def iniciar_partida_desde_menu(ventana):
     estado_partida["victorias_defensor"] = 0
     estado_partida["victorias_atacante"] = 0
     estado_partida["ronda_actual"] = 1
+    
+    # Limpiar dinero de partidas anteriores
+    if jugadores_activos[0]: jugadores_activos[0].pop("dinero_batalla", None)
+    if jugadores_activos[1]: jugadores_activos[1].pop("dinero_batalla", None)
+    
     abrir_seleccion_faccion(0)
 
 # ── VENTANA PRINCIPAL ─────────────────────────────────────────────────────────
@@ -420,10 +449,14 @@ def abrir_menu_principal():
 
 
 # ── VENTANA DE JUEGO ──────────────────────────────────────────────────────────
-def abrir_juego():
-    mapa = [[None for _ in range(COLS)] for _ in range(FILAS)]
-    for f in range(FILAS):
-        mapa[f][COL_BASE] = "BASE"
+def abrir_juego(mapa_existente=None):
+    cache_texturas.clear()
+    if mapa_existente is None:
+        mapa = [[None for _ in range(COLS)] for _ in range(FILAS)]
+        for f in range(FILAS):
+            mapa[f][COL_BASE] = "BASE"
+    else:
+        mapa = mapa_existente
 
     defensor  = Defensor(jugadores_activos[0])
     seleccion = {"tipo": TIPOS_TORRE[0]}
@@ -462,6 +495,7 @@ def abrir_juego():
     lbl_seleccion.grid(row=2, column=0, columnspan=5, pady=4)
 
     def ir_a_fase_ataque():
+        jugadores_activos[0]["dinero_batalla"] = defensor.dinero
         ventana_juego.destroy()
         abrir_fase_ataque(mapa)
 
@@ -612,25 +646,6 @@ def abrir_configuracion():
     slider_volumen.set(estado["volumen"])
     slider_volumen.pack()
 
-    tk.Label(ventana_config, text="Texturas", font=("Arial", 11)).pack(pady=(20, 5))
-
-    frame_fila3 = tk.Frame(ventana_config)
-    frame_fila3.pack(pady=5)
-
-    lbl_textura = tk.Label(frame_fila3, text=f"Textura actual: {estado['textura']}", font=("Arial", 10))
-    lbl_textura.grid(row=0, column=0, padx=20)
-
-    def ciclar_textura():
-        idx = CICLO_TEXTURAS.index(estado["textura"])
-        estado["textura"] = CICLO_TEXTURAS[(idx + 1) % len(CICLO_TEXTURAS)]
-        lbl_textura.config(text=f"Textura actual: {estado['textura']}")
-        btn_textura.config(text=estado["textura"].capitalize())
-
-    btn_textura = tk.Button(frame_fila3, text=estado["textura"].capitalize(), width=18, height=2,
-                            command=ciclar_textura, font=("Arial Black", 10), bg="#D1D5C4",
-                            fg="#2B2B2B", bd=4, relief="groove")
-    btn_textura.grid(row=0, column=1, padx=20)
-
     ventana_config.mainloop()
 
 
@@ -675,6 +690,7 @@ def abrir_ranking():
     ventana_ranking.mainloop()
 
 def abrir_fase_ataque(mapa_defensor):
+    cache_texturas.clear()
     FILAS_ATK = 10
     COLS_ATK  = 5
 
@@ -719,6 +735,7 @@ def abrir_fase_ataque(mapa_defensor):
     lbl_mensaje.grid(row=3, column=0, columnspan=5)
 
     def ir_a_batalla():
+        jugadores_activos[1]["dinero_batalla"] = atacante.dinero
         ventana_atk.destroy()
         abrir_batalla(mapa_defensor, mapa_atk)
 
@@ -796,6 +813,9 @@ def abrir_fase_ataque(mapa_defensor):
     ventana_atk.mainloop()
 
 def abrir_batalla(mapa_defensor, mapa_atacante):
+
+    cache_texturas.clear()
+
     FILAS_BAT  = 10
     COLS_BAT   = 16
     COLS_DEF   = 11   # columnas 0-10 son del defensor (col 0 = BASE)
@@ -849,34 +869,54 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
 
     def dibujar():
         canvas.delete("all")
+        
+        # Obtener facciones elegidas por los jugadores
+        faccion_def = jugadores_activos[0].get("faccion", "Normal")
+        faccion_atk = jugadores_activos[1].get("faccion", "Normal")
+
         for f in range(FILAS_BAT):
             for c in range(COLS_BAT):
                 x0, y0 = c * TAM_CELDA, f * TAM_CELDA
                 x1, y1 = x0 + TAM_CELDA, y0 + TAM_CELDA
                 celda  = batalla[f][c]
 
-                if celda == "BASE":
-                    color_fondo = "#c4853a"
-                elif celda is None:
-                    color_fondo = COLORES_FILA[f % 2]
-                elif isinstance(celda, Enemigo):
-                    color_fondo = celda.color
-                else:
-                    color_fondo = celda.color
-
+                # 1. Dibujar el fondo base (pasto/suelo)
+                color_fondo = COLORES_FILA[f % 2]
                 canvas.create_rectangle(x0, y0, x1, y1, fill=color_fondo, outline="")
 
-                if celda is not None and celda != "BASE":
-                    # nombre
-                    canvas.create_text(x0 + TAM_CELDA // 2, y0 + TAM_CELDA // 2 - 6,
-                                       text=celda.nombre[:3], fill="white",
-                                       font=("Arial", 7, "bold"))
-                    # barra de vida solo para enemigos
+                # 2. Determinar textura y dibujar la celda
+                if celda is not None:
+                    textura_img = None
+                    color_fallback = "#c4853a" if celda == "BASE" else celda.color
+                    
+                    if celda == "BASE":
+                        textura_img = obtener_textura(FACCIONES[faccion_def]["BASE"])
+                    elif isinstance(celda, Enemigo):
+                        textura_img = obtener_textura(FACCIONES[faccion_atk][celda.nombre])
+                    elif isinstance(celda, (Torres, Muro)):
+                        textura_img = obtener_textura(FACCIONES[faccion_def][celda.nombre])
+
+                    # Dibuja la imagen si existe, si no, usa el color de fallback
+                    if textura_img:
+                        canvas.create_image(x0 + TAM_CELDA//2, y0 + TAM_CELDA//2, image=textura_img)
+                    else:
+                        canvas.create_rectangle(x0, y0, x1, y1, fill=color_fallback, outline="")
+                        texto = "BAS" if celda == "BASE" else celda.nombre[:3]
+                        canvas.create_text(x0 + TAM_CELDA // 2, y0 + TAM_CELDA // 2 - 6,
+                                           text=texto, fill="white", font=("Arial", 7, "bold"))
+
+                    # 3. Dibujar la barra de vida (solo enemigos)
                     if isinstance(celda, Enemigo):
                         pct = max(0, celda.vida / celda.vida_max)
-                        canvas.create_rectangle(x0+2, y1-7, x1-2, y1-2, fill="#555", outline="")
-                        canvas.create_rectangle(x0+2, y1-7, x0+2+int((TAM_CELDA-4)*pct), y1-2,
-                                                fill="#2ecc71", outline="")
+                        ancho_barra = 26
+                        offset_x = (TAM_CELDA - ancho_barra) // 2
+                        canvas.create_rectangle(x0 + offset_x, y1 - 6, x0 + offset_x + ancho_barra, y1 - 3, fill="#555", outline="")
+                        canvas.create_rectangle(x0 + offset_x, y1 - 6, x0 + offset_x + int(ancho_barra * pct), y1 - 3, fill="#2ecc71", outline="")
+
+                    if isinstance(celda, Torres):
+                        canvas.create_text(x0 + TAM_CELDA // 2, y1 - 12, 
+                                           text=f"{celda.vida}", 
+                                           fill="white", font=("Arial", 8, "bold"))
 
     def dibujar_rayo(f_origen, c_origen, f_destino, c_destino, color):
         x1 = c_origen * TAM_CELDA + 25
@@ -986,7 +1026,8 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
                             if 0 <= vf < FILAS_BAT and 0 <= vc < COLS_BAT:
                                 aliado = batalla[vf][vc]
                                 if isinstance(aliado, (Torres, Muro)):
-                                    aliado.vida += 20  # Cura 20 puntos
+                                    if aliado.vida < aliado.vida_max:
+                                        aliado.vida += 20  # Cura 20 puntos
                                     dibujar_rayo(f, c, vf, vc, "green")  # Rayo verde curativo
                     continue  # Si curó, ya usó su turno y no ataca
 
@@ -1041,12 +1082,22 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
 
         dibujar()
 
+        def extraer_mapa_persistente():
+            nuevo_mapa = [[None for _ in range(16)] for _ in range(10)]
+            for f_map in range(10):
+                for c_map in range(16):
+                    # Guardar solo Torres, Muros y la BASE
+                    if isinstance(batalla[f_map][c_map], (Torres, Muro)) or batalla[f_map][c_map] == "BASE":
+                        nuevo_mapa[f_map][c_map] = batalla[f_map][c_map]
+            return nuevo_mapa
+
         if gano_atacante:
             juego_activo["corriendo"] = False
             lbl_estado.config(text="💀 ¡El atacante ha ganado esta ronda!", fg="#e74c3c")
             jugadores_activos[1]["dinero_batalla"] = dinero_atacante["valor"]
             jugadores_activos[0]["dinero_batalla"] = dinero_defensor["valor"]
-            ventana_bat.after(2500, lambda: procesar_fin_ronda(ventana_bat, "atacante"))
+            mapa_guardado = extraer_mapa_persistente()
+            ventana_bat.after(2500, lambda: procesar_fin_ronda(ventana_bat, "atacante", mapa_guardado))
             return
 
         if gano_defensor:
@@ -1054,7 +1105,8 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
             lbl_estado.config(text="🏆 ¡El defensor ha ganado esta ronda!", fg="#2ecc71")
             jugadores_activos[1]["dinero_batalla"] = dinero_atacante["valor"]
             jugadores_activos[0]["dinero_batalla"] = dinero_defensor["valor"]
-            ventana_bat.after(2500, lambda: procesar_fin_ronda(ventana_bat, "defensor"))
+            mapa_guardado = extraer_mapa_persistente()
+            ventana_bat.after(2500, lambda: procesar_fin_ronda(ventana_bat, "defensor", mapa_guardado))
             return
 
         ventana_bat.after(600, tick)
