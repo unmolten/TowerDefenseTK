@@ -43,9 +43,9 @@ class Muro:
 # Estos son los templates. Cuando el jugador coloca uno, se clona con copy.copy()
 
 TIPOS_TORRE = [
-    Torres("Básica", vida=60,  atk=10, costo=50,  alcance=3, vel_especial=5, color="#3498db"),
-    Torres("Pesada", vida=200, atk=30, costo=120, alcance=2, vel_especial=4, color="#e74c3c"),
-    Torres("Mágica", vida=50,  atk=8,  costo=90,  alcance=4, vel_especial=3, color="#9b59b6"),
+    Torres("Básica", vida=60,  atk=10, costo=50,  alcance=6, vel_especial=5, color="#3498db"),
+    Torres("Pesada", vida=200, atk=30, costo=120, alcance=4, vel_especial=4, color="#e74c3c"),
+    Torres("Mágica", vida=50,  atk=8,  costo=90,  alcance=8, vel_especial=3, color="#9b59b6"),
 ]
 
 MURO_TIPO = Muro()
@@ -99,7 +99,7 @@ TIPOS_ENEMIGO = [
 # ── DEFENSOR ──────────────────────────────────────────────────────────────────
 
 class Defensor:
-    DINERO_INICIAL = 400
+    DINERO_INICIAL = 600
 
     def __init__(self, jugador):
         self.jugador = jugador
@@ -181,6 +181,35 @@ def iniciar_sesion(username, password):
         return False, "Contraseña incorrecta."
     return True, jugadores[username]
 
+def registrar_victoria(username, rol):
+    jugadores = cargar_jugadores()
+    
+    if username in jugadores:
+        if rol == "defensor":
+            jugadores[username]["victorias_defensor"] += 1
+        elif rol == "atacante":
+            jugadores[username]["victorias_atacante"] += 1
+            
+        guardar_jugadores(jugadores)
+
+def procesar_fin_ronda(ventana_bat, ganador):
+    ventana_bat.destroy()
+    
+    if ganador == "atacante":
+        estado_partida["victorias_atacante"] += 1
+    else:
+        estado_partida["victorias_defensor"] += 1
+        
+    # Verificar si alguien ganó la partida completa (3 rondas)
+    if estado_partida["victorias_atacante"] >= 3:
+        registrar_victoria(jugadores_activos[1]["username"], "atacante")
+        abrir_menu_principal()
+    elif estado_partida["victorias_defensor"] >= 3:
+        registrar_victoria(jugadores_activos[0]["username"], "defensor")
+        abrir_menu_principal()
+    else:
+        estado_partida["ronda_actual"] += 1
+        abrir_juego() # Iniciar nueva ronda[cite: 2]
 
 # ── ESTADOS GLOBALES ──────────────────────────────────────────────────────────
 estado = {
@@ -188,9 +217,52 @@ estado = {
     "volumen":        50,
     "musica_pausada": False,
 }
+estado_partida = {
+    "victorias_defensor": 0,
+    "victorias_atacante": 0,
+    "ronda_actual": 1
+}
+
 CICLO_TEXTURAS    = ["predeterminado", "animado", "realista"]
 jugadores_activos = [None, None]
 
+# ── FACCIONES ─────────────────────────────────────────────────────────────────
+FACCIONES = {
+    "Medieval": {"torre_basica": "#8B4513", "muro": "#696969", "base": "#A0522D"},
+    "Futurista": {"torre_basica": "#00FFFF", "muro": "#C0C0C0", "base": "#1E90FF"},
+    "Naturaleza": {"torre_basica": "#228B22", "muro": "#8FBC8F", "base": "#32CD32"}
+}
+
+def procesar_eleccion_faccion(faccion_elegida, turno, ventana_actual):
+    jugadores_activos[turno]["faccion"] = faccion_elegida
+    ventana_actual.destroy()
+    
+    if turno == 0:
+        abrir_seleccion_faccion(1) 
+    else:
+        abrir_juego()      
+
+def abrir_seleccion_faccion(turno):
+    ventana_faccion = tk.Tk()
+    ventana_faccion.title(f"Seleccionar Facción - Jugador {turno + 1}")
+    ventana_faccion.geometry("400x300")
+    
+    tk.Label(ventana_faccion, text=f"{jugadores_activos[turno]['username']}, elige tu facción:", font=("Arial", 12)).pack(pady=20)
+    
+    for nombre_faccion in FACCIONES.keys():
+        estado_btn = tk.NORMAL
+        if turno == 1 and jugadores_activos[0].get("faccion") == nombre_faccion:
+            estado_btn = tk.DISABLED
+            
+        tk.Button(
+            ventana_faccion, 
+            text=nombre_faccion, 
+            state=estado_btn, 
+            width=20,
+            command=lambda f=nombre_faccion, t=turno, v=ventana_faccion: procesar_eleccion_faccion(f, t, v)
+        ).pack(pady=5)
+        
+    ventana_faccion.mainloop()
 
 # ── VENTANA DE LOGIN ──────────────────────────────────────────────────────────
 def abrir_login(turno):
@@ -248,6 +320,12 @@ def abrir_login(turno):
 
     ventana_login.mainloop()
 
+def iniciar_partida_desde_menu(ventana):
+    ventana.destroy()
+    estado_partida["victorias_defensor"] = 0
+    estado_partida["victorias_atacante"] = 0
+    estado_partida["ronda_actual"] = 1
+    abrir_seleccion_faccion(0)
 
 # ── VENTANA PRINCIPAL ─────────────────────────────────────────────────────────
 def abrir_menu_principal():
@@ -271,9 +349,10 @@ def abrir_menu_principal():
         ventana_principal.destroy()
         abrir_configuracion()
 
-    tk.Button(ventana_principal, text="JUGAR", width=16, height=2, command=ir_a_jugar,
-              font=("Arial Black", 14), bg="#2B2B2B", fg="#A3E4D7", bd=5, relief="raised",
-              activebackground="#404040", activeforeground="#A3E4D7").place(relx=0.35, rely=0.6, anchor="center")
+    tk.Button(ventana_principal, text="JUGAR", width=16, height=2, 
+          command=lambda v=ventana_principal: iniciar_partida_desde_menu(v),
+          font=("Arial Black", 14), bg="#2B2B2B", fg="#A3E4D7", bd=5, relief="raised").place(relx=0.35, rely=0.6, anchor="center")
+    
     tk.Button(ventana_principal, text="CONFIGURACIÓN", width=16, height=2, command=ir_a_configuracion,
               font=("Arial Black", 14), bg="#2B2B2B", fg="#A3E4D7", bd=5, relief="raised",
               activebackground="#404040", activeforeground="#A3E4D7").place(relx=0.65, rely=0.6, anchor="center")
@@ -782,29 +861,44 @@ def abrir_batalla(mapa_defensor, mapa_atacante):
             if gano_atacante:
                 break
 
-        # torres atacan a enemigos en su alcance
+       # torres atacan a enemigos en su alcance (ahora en TODAS las direcciones)
         for f in range(FILAS_BAT):
             for c in range(COLS_BAT):
                 torre = batalla[f][c]
                 if not isinstance(torre, Torres):
                     continue
+                    
                 torre.contador_especial += 1
                 atk_torre = torre.atk
                 if torre.contador_especial >= torre.vel_especial:
+                    # Aquí es donde pondrías la lógica de habilidades especiales
                     torre.contador_especial = 0
 
-                # buscar enemigo más cercano a la izquierda dentro del alcance
-                for dc in range(1, torre.alcance + 1):
-                    objetivo_c = c + dc  # enemigos vienen de la derecha
-                    if objetivo_c >= COLS_BAT:
-                        break
-                    objetivo = batalla[f][objetivo_c]
-                    if isinstance(objetivo, Enemigo):
-                        objetivo.recibir_danio(atk_torre)
-                        if not objetivo.esta_vivo():
-                            dinero_atacante["valor"] += objetivo.costo // 2
-                            lbl_dinero_bat.config(text=f"💰 Atacante: ${dinero_atacante['valor']}")
-                            batalla[f][objetivo_c] = None
+                # NUEVA LÓGICA DE BÚSQUEDA: Arriba, abajo, izquierda (atrás) y derecha
+                enemigo_atacado = False
+                for df in range(-torre.alcance, torre.alcance + 1):
+                    for dc in range(-torre.alcance, torre.alcance + 1):
+                        
+                        # Calcula el rango real de la torre
+                        if abs(df) + abs(dc) <= torre.alcance:
+                            objetivo_f = f + df
+                            objetivo_c = c + dc
+                            
+                            # Verifica que no se salga del mapa
+                            if 0 <= objetivo_f < FILAS_BAT and 0 <= objetivo_c < COLS_BAT:
+                                objetivo = batalla[objetivo_f][objetivo_c]
+                                
+                                if isinstance(objetivo, Enemigo):
+                                    objetivo.recibir_danio(atk_torre)
+                                    
+                                    if not objetivo.esta_vivo():
+                                        dinero_atacante["valor"] += objetivo.costo // 2
+                                        lbl_dinero_bat.config(text=f"💰 Atacante: ${dinero_atacante['valor']}")
+                                        batalla[objetivo_f][objetivo_c] = None
+                                        
+                                    enemigo_atacado = True
+                                    break 
+                    if enemigo_atacado:
                         break
 
         dibujar()
