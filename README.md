@@ -1,6 +1,6 @@
-# 🏰 Tower Defense TK
+# 🏰 P.B.F VS S.P.D.L.O
 
-¡Bienvenido a **Tower Defense TK**! Un juego de estrategia desarrollado en Python. Defiende tu base utilizando diferentes tipos de torres y muros, elige tu facción y sobrevive a las oleadas de enemigos.
+¡Bienvenido a **P.B.F VS S.P.D.L.O**! <sub>(Plantas bien flipantes VS señores putridos de la ostia)</sub> Un juego de estrategia desarrollado en Python. Defiende tu base utilizando diferentes tipos de torres y muros, elige tu facción y sobrevive a las oleadas de enemigos.
 
 ---
 
